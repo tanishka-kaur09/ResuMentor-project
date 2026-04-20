@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resume Analyzer</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+    <h1 id="heading">Resume Analyzer</h1>
+ <section id="analyzer" class="section">
+  
+  <input type="file" id="resumeFile" accept=".pdf,.docx,.txt">
+  <button class="btn" onclick="analyzeResume()">Analyze</button>
+  <div id="analysisResult" class="result-box"></div>
+ </section>
+ <script src="script.js"></script>
+</body>
+</html>
