@@ -1,179 +1,82 @@
-async function analyzeResume() {
-  const file = document.getElementById("resumeFile").files[0];
-  const box = document.getElementById("analysisResult");
+let myChart;
 
-  if (!file) return alert("Upload resume first");
-  box.style.display = "block";
-  box.innerHTML = "Analyzing...";
-
-  let text = "";
-
-  if (file.name.endsWith(".pdf")) {
-    const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map((i) => i.str).join(" ");
-    }
-  } else if (file.name.endsWith(".docx")) {
-    const result = await mammoth.extractRawText({
-      arrayBuffer: await file.arrayBuffer(),
-    });
-    text = result.value;
-  } else {
-    text = await file.text();
-  }
-
-  const skills = [
-    "html",
-    "css",
-    "javascript",
-    "python",
-    "java",
-    "sql",
-    "react",
-  ].filter((s) => text.toLowerCase().includes(s));
-
-  box.innerHTML = `
-    <h3>Detected Skills</h3>
-    <p>${skills.join(", ") || "No skills detected"}</p>
-    <p><strong>Score:</strong> ${Math.min(100, skills.length * 15)}%</p>
-  `;
+function showForm(role) {
+    window.currentRole = role;
+    document.getElementById('hero').style.display = 'none';
+    document.getElementById('upload-section').style.display = 'block';
+    document.getElementById('jd-container').style.display = role === 'employer' ? 'block' : 'none';
 }
 
-async function analyzeResume() {
-  const file = document.getElementById("resumeFile").files[0];
-  const box = document.getElementById("analysisResult");
+function goBack() {
+    document.getElementById('hero').style.display = 'block';
+    document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('resume-file').value = "";
+}
 
-  if (!file) return alert("Please upload resume first");
+async function processAnalysis() {
+    const fileInput = document.getElementById('resume-file');
+    const jdText = document.getElementById('jd-input').value;
 
-  box.style.display = "block";
-  box.innerHTML = "Analyzing complete resume... ⏳";
+    if (!fileInput.files[0]) return alert("Please upload a PDF first.");
 
-  let text = "";
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("role", window.currentRole);
+    formData.append("jd_text", jdText);
 
-  if (file.name.endsWith(".pdf")) {
-    const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map((i) => i.str).join(" ") + " ";
+    try {
+        const response = await fetch('http://127.0.0.1:8000/analyze', { method: 'POST', body: formData });
+        const data = await response.json();
+        displayResults(data);
+    } catch (err) {
+        alert("Backend server is offline! Run main.py.");
     }
-  } else if (file.name.endsWith(".docx")) {
-    const result = await mammoth.extractRawText({
-      arrayBuffer: await file.arrayBuffer(),
+}
+
+function displayResults(data) {
+    if (data.error) return alert("Error: " + data.error);
+
+    const resultSection = document.getElementById('results');
+    resultSection.style.display = 'flex';
+    
+    const finalScore = parseFloat(data.score).toFixed(1);
+    document.getElementById('score-val').innerText = `${finalScore}%`;
+
+    // 📋 Structure
+    let sectionHtml = "<h3>📋 Resume Structure</h3>";
+    for (let s in data.sections) {
+        sectionHtml += `<div class="status-item">${s}: ${data.sections[s] ? '✅' : '❌'}</div>`;
+    }
+    document.getElementById('section-status').innerHTML = sectionHtml;
+
+    // 💻 Skills
+    let skillHtml = "<h3>💻 Tech Detected</h3><div class='tag-container'>";
+    skillHtml += data.skills.map(s => `<span class='tag'>${s}</span>`).join('');
+    skillHtml += "</div>";
+    document.getElementById('skill-tags').innerHTML = skillHtml;
+
+    // 💡 Advice
+    let advice = "<h3>💡 Mentor Advice</h3><ul>";
+    if (finalScore < 40) advice += "<li><b>Skill Mismatch:</b> Resume lacks keywords from the JD.</li>";
+    if (!data.sections.PROJECTS) advice += "<li>Add a <b>Projects</b> section to prove expertise.</li>";
+    if (data.skills.length < 3) advice += "<li>List more tools like Git, Docker, or AWS.</li>";
+    if (advice === "<h3>💡 Mentor Advice</h3><ul>") advice += "<li>Great job! Your resume is highly compatible.</li>";
+    advice += "</ul>";
+    document.getElementById('improvement-advice').innerHTML = advice;
+
+    renderChart(parseFloat(finalScore));
+    window.scrollTo({ top: resultSection.offsetTop - 20, behavior: 'smooth' });
+}
+
+function renderChart(score) {
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+    if (myChart) myChart.destroy();
+    myChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{ data: [score, 100 - score], backgroundColor: ['#0fbcf9', '#1a1b23'], borderWidth: 0 }]
+        },
+        options: { cutout: '80%', plugins: { legend: { display: false } } }
     });
-    text = result.value;
-  } else {
-    text = await file.text();
-  }
-
-  const lower = text.toLowerCase();
-
-  const sections = {
-    summary: lower.includes("summary") || lower.includes("objective"),
-    skills: lower.includes("skills"),
-    experience: lower.includes("experience") || lower.includes("intern"),
-    education: lower.includes("education"),
-    projects: lower.includes("project"),
-    certification: lower.includes("certification"),
-  };
-
-  const techSkills = [
-    "html",
-    "css",
-    "javascript",
-    "react",
-    "node",
-    "python",
-    "java",
-    "c++",
-    "sql",
-    "mongodb",
-    "aws",
-    "machine learning",
-    "next",
-    "express",
-    "go",
-    "rust",
-    "ruby",
-  ];
-
-  const softSkills = [
-    "communication",
-    "teamwork",
-    "leadership",
-    "problem solving",
-    "adaptability",
-    "critical thinking",
-  ];
-
-  const detectedTech = techSkills.filter((s) => lower.includes(s));
-  const detectedSoft = softSkills.filter((s) => lower.includes(s));
-
-  const emailFound = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
-  const phoneFound = /\b\d{10}\b/.test(text);
-  const linkedinFound = lower.includes("linkedin");
-
-  let score = 0;
-
-  Object.values(sections).forEach((v) => v && (score += 10));
-  score += detectedTech.length * 3;
-  score += detectedSoft.length * 2;
-  if (emailFound) score += 5;
-  if (phoneFound) score += 5;
-  if (linkedinFound) score += 5;
-
-  if (score > 100) score = 100;
-
-  let rating = "Poor ❌";
-  if (score >= 80) rating = "Excellent ⭐";
-  else if (score >= 60) rating = "Good 👍";
-  else if (score >= 40) rating = "Average ⚠️";
-
-  const suggestions = [];
-
-  if (!sections.summary)
-    suggestions.push("Add a professional summary or objective.");
-  if (!sections.skills) suggestions.push("Add a clear skills section.");
-  if (!sections.projects)
-    suggestions.push("Mention academic or personal projects.");
-  if (!linkedinFound) suggestions.push("Include LinkedIn profile.");
-  if (detectedTech.length < 4)
-    suggestions.push("Add more relevant technical skills.");
-  if (detectedSoft.length < 2)
-    suggestions.push("Highlight soft skills like communication or teamwork.");
-  if (score < 60)
-    suggestions.push("Use numbers and achievements to strengthen experience.");
-
-  box.innerHTML = `
-    <h2>Resume Analyzer</h2>
-    <hr>
-
-    <h3>Overall Score</h3>
-    <p><strong>${score}%</strong> (${rating})</p>
-
-    <h3>Sections Found</h3>
-    <ul style="list-style: none;">
-      ${Object.entries(sections)
-        .map(([k, v]) => `<li>${k.toUpperCase()} : ${v ? "✅" : "❌"}</li>`)
-        .join("")}
-    </ul>
-
-    <h3>💻 Technical Skills</h3>
-    <p>${detectedTech.join(", ") || "Not clearly mentioned"}</p>
-
-    <h3>🧠 Soft Skills</h3>
-    <p>${detectedSoft.join(", ") || "Not detected"}</p>
-
-    <h3>📞 Contact Information</h3>
-    <p>
-       Email: ${emailFound ? "✅" : "❌"} |
-       Phone: ${phoneFound ? "✅" : "❌"} |
-       LinkedIn: ${linkedinFound ? "✅" : "❌"}
-    </p>
-
-    <h3>Improvement Suggestions</h3>
-    <ul style="list-style: none;">${suggestions.map((s) => `<li>${s}</li>`).join("")}</ul>
-  `;
 }
